@@ -1,21 +1,22 @@
 
-print(paste("Extracting relevant data from ATUS", tfirst, "to", tlast))
+message(str_c("Extracting relevant data from ATUS ", tfst, " to ", tlst))
 
-t <- tfirst
+tic()
 
-while (t <= tlast) {
-    print(paste(" year", t))
+future_walk(tfst:tlst,
+    function(t = .) {
+    message(str_c("\n Extracting ATUS data for year ", t, "\n"))
 
     # df_atus_act data
     df_atus_act <-
-        read_csv(paste0(ddir_atus, "raw/atusact_", t, ".dat")) %>%
+        read_csv(str_c(ddir_atus, "raw/atusact_", t, ".dat")) %>%
         rename_all(funs(tolower)) %>%
         select(tucaseid, tuactivity_n, tewhere, tuactdur, tuactdur24, tutier1code, tutier2code, tutier3code) %>%
         mutate_if(is.character, as.integer)
 
     # atucps data (only keep respondent's info)
     df_atus_cps <-
-        read_csv(paste0(ddir_atus, "raw/atuscps_", t, ".dat")) %>%
+        read_csv(str_c(ddir_atus, "raw/atuscps_", t, ".dat")) %>%
         rename_all(funs(tolower)) %>%
         filter(tulineno == 1) %>%
         select(prtage, pesex, peeduca, tucaseid, tulineno, prunedur, pruntype, ptdtrace,
@@ -23,14 +24,14 @@ while (t <= tlast) {
 
     # df_atus_rost data (only keep respondent's info)
     df_atus_rost <-
-        read_csv(paste0(ddir_atus, "raw/atusrost_", t, ".dat")) %>%
+        read_csv(str_c(ddir_atus, "raw/atusrost_", t, ".dat")) %>%
         rename_all(funs(tolower)) %>%
         filter(tulineno == 1) %>%
         select(teage, tesex, tucaseid, tulineno)
 
     # df_atus_resp data
     df_atus_resp <-
-        read_csv(paste0(ddir_atus, "raw/atusresp_", t, ".dat")) %>%
+        read_csv(str_c(ddir_atus, "raw/atusresp_", t, ".dat")) %>%
         rename_all(tolower) %>%
         select(tulk, tufwk, tulay, tudis, tuabsot, teret1, telfs, trchildnum, trsppres, tryhhchild,
                tucaseid, tulineno, tudiaryday, tudiarydate, tumonth, tuyear, turetot, trernwa,
@@ -498,10 +499,10 @@ while (t <= tlast) {
     if (nobs_not_full_day) stop("missing activities, total time < 24hr")
 
     df_timeuse %<>%
-    mutate(twoyear = (tuyear - 2003) %/% 2 + 1,
-           threeyear = (tuyear - 2002) %/% 3 + 1,
-           drec20082009 = (tuyear %in% c(2008:2009)) %>% as.integer(),
-           drec20082010 = (tuyear %in% c(2008:2010)) %>% as.integer())
+        mutate(twoyear = (tuyear - 2003) %/% 2 + 1,
+               threeyear = (tuyear - 2002) %/% 3 + 1,
+               drec20082009 = (tuyear %in% c(2008:2009)) %>% as.integer(),
+               drec20082010 = (tuyear %in% c(2008:2010)) %>% as.integer())
 
     # # days of week are not equally represented in weight, ATUS adjusts so that days of week reflect frequency within the month of interview
     # # tab interview_day [aw=weight], matcell(freq)
@@ -518,11 +519,13 @@ while (t <= tlast) {
     df_timeuse %<>%
         mutate_at(vars(starts_with("t_")), funs(./60*7))
 
-    save(df_timeuse, df_location, file = paste0(edir_atus, "subset_", t, ".Rdata"))
+    # save(df_timeuse, df_location, file = str_c(edir_atus, "extract_", t, ".Rdata"))
+
+    save(df_timeuse, file = str_c(edir_atus, "atus_", t, "_timeuse.Rdata"))
+    save(df_location, file = str_c(edir_atus, "atus_", t, "_location.Rdata"))
 
     rm(df_timeuse, df_location)
 
-    # go to next year
-    t <- t + 1
+})
 
-}
+toc()
