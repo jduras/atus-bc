@@ -1,7 +1,7 @@
 
-print("Constructing categorical variables for age, education, household income")
+message("Constructing categorical variables for age, education, household income")
 
-load(file = paste0(edir_atus, "atus_", tfirst, "_", tlast, "_timeuse.Rdata"))
+load(file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_timeuse.Rdata"))
 
 if (workage == "1865")
     df_timeuse_all %<>%
@@ -33,7 +33,7 @@ df_timeuse_all %<>%
            faminc_f_3 = cut(faminc, breaks = faminc_breaks_3, labels = faminc_labels_3, right = TRUE),
            faminc_f_4 = cut(faminc, breaks = faminc_breaks_4, labels = faminc_labels_4, right = TRUE))
 
-save(df_timeuse_all, file = paste0(edir_atus, "atus_", tfirst, "_", tlast, "_individual.Rdata"))
+save(df_timeuse_all, file = str_c(edir_atus, "atus_", tfirst, "_", tlast, "_individual.Rdata"))
 
 rm(list = ls(pattern = "^faminc_"))
 rm(list = ls(pattern = "_breaks$"))
