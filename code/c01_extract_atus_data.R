@@ -515,9 +515,10 @@ future_walk(tfst:tlst,
     # daywt <- weight*dywt
     # weight_adj <- daywt/sum(daywt) # adjusted so sum of weights is one to conform with other years
 
-    # convert to hours per week
+    # convert to hours
     df_timeuse %<>%
-        mutate_at(vars(starts_with("t_")), funs(./60*7))
+        mutate_at(vars(starts_with("t_")), funs(./60))
+        # mutate_at(vars(starts_with("t_")), funs(./60*7))
 
     # save(df_timeuse, df_location, file = str_c(edir_atus, "extract_", t, ".Rdata"))
 
