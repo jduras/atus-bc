@@ -3,6 +3,27 @@ message("Constructing categorical variables for age, education, household income
 
 load(file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_timeuse.Rdata"))
 
+# note: faminc    "Household Income (Combined income of all family members during the last 12 months)"
+# -1    "Blank"
+# -2    "Don't Know"
+# -3    "Refused"
+#  1    "Less than 5,000"
+#  2     "5,000 to 7,499"
+#  3     "7,500 to 9,999"
+#  4    "10,000 to 12,499"
+#  5    "12,500 to 14,999"
+#  6    "15,000 to 19,999"
+#  7    "20,000 to 24,999"
+#  8    "25,000 to 29,999"
+#  9    "30,000 to 34,999"
+# 10    "35,000 to 39,999"
+# 11    "40,000 to 49,999"
+# 12    "50,000 to 59,999"
+# 13    "60,000 to 74,999"
+# 14    "75,000 to 99,999"
+# 15    "100,000 to 149,999"
+# 16    "150,000 and over"
+
 if (workage == "1865")
     df_timeuse_all %<>%
         filter(age >= 18 & age <= 65)
@@ -33,29 +54,7 @@ df_timeuse_all %<>%
            faminc_f_3 = cut(faminc, breaks = faminc_breaks_3, labels = faminc_labels_3, right = TRUE),
            faminc_f_4 = cut(faminc, breaks = faminc_breaks_4, labels = faminc_labels_4, right = TRUE))
 
-save(df_timeuse_all, file = str_c(edir_atus, "atus_", tfirst, "_", tlast, "_individual.Rdata"))
+save(df_timeuse_all, file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual.Rdata"))
 
 rm(list = ls(pattern = "^faminc_"))
 rm(list = ls(pattern = "_breaks$"))
-
-
-# note: faminc    "Household Income (Combined income of all family members during the last 12 months)"
-# -1    "Blank"
-# -2    "Don't Know"
-# -3    "Refused"
-#  1    "Less than 5,000"
-#  2     "5,000 to 7,499"
-#  3     "7,500 to 9,999"
-#  4    "10,000 to 12,499"
-#  5    "12,500 to 14,999"
-#  6    "15,000 to 19,999"
-#  7    "20,000 to 24,999"
-#  8    "25,000 to 29,999"
-#  9    "30,000 to 34,999"
-# 10    "35,000 to 39,999"
-# 11    "40,000 to 49,999"
-# 12    "50,000 to 59,999"
-# 13    "60,000 to 74,999"
-# 14    "75,000 to 99,999"
-# 15    "100,000 to 149,999"
-# 16    "150,000 and over"
