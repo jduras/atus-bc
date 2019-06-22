@@ -1,17 +1,16 @@
 
-
 # file to estimate individual level regressions - time spent on shopping related activities
 
 # ATUS data: time spent on varios activities
-load(file = paste0(edir_atus, "atus_", tfirst, "_", tlast, "_individual.Rdata"))
+load(file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual.Rdata"))
 # CPS data: unemployment rate
-load(file = paste0(edir_atus, "ux_", tfirst, "_", tlast, "_state.Rdata"))
+load(file = str_c(edir_atus, "ux_", tfst, "_", tlst, "_state.Rdata"))
 # NIPA data: real GDP and personal income
-load(file = paste0(edir_atus, "ni_", tfirst, "_", tlast, "_state.Rdata"))
+load(file = str_c(edir_atus, "ni_", tfst, "_", tlst, "_state.Rdata"))
 
 
 df_umcsent_q <-
-    tq_get("UMCSENT", get = "economic.data", from = str_c(tfirst,"-01-01"), to = str_c(tlast,"-12-01")) %>%
+    tq_get("UMCSENT", get = "economic.data", from = str_c(tfst,"-01-01"), to = str_c(tlst,"-12-01")) %>%
     rename(umcsent = price) %>%
     mutate(tuyear = year(date),
            tuquarter = quarter(date)) %>%
@@ -58,6 +57,7 @@ df_timeuse_all %>%
         # coord_flip()
 
 
+### Regressions ####
 
 # assemble dataset for OLS models
 df_lm <-
@@ -106,6 +106,21 @@ lm_spc <- c(lm_spc, "faminc_f_1 + demo_female+demo_black+demo_married+demo_hv_ch
 lm_spc <- c(lm_spc, "faminc_f_1 + demo_female+demo_black+demo_married+demo_hv_child+demo_spouse_emp + demo_age_f + demo_educ_f + lfs_unemp+lfs_retired+lfs_homemaker+lfs_student + factor(gestfips) + factor(tuyear) + factor(tudiaryday) + u5rate")
 lm_spc <- c(lm_spc, "faminc_f_1 + demo_female+demo_black+demo_married+demo_hv_child+demo_spouse_emp + demo_age_f + demo_educ_f + lfs_unemp+lfs_retired+lfs_homemaker+lfs_student + factor(gestfips) + factor(tuyear) + factor(tudiaryday) + u6rate")
 
+# to do: try to simplify this alternative way to set up specifications
+# tibble(spc1 = c("faminc_f_1",
+#                 "factor(tudiaryday)",
+#                 "demo_female+demo_black+demo_married+demo_hv_child+demo_spouse_emp + demo_age_f + demo_educ_f",
+#                 "lfs_unemp+lfs_retired+lfs_homemaker+lfs_student",
+#                 rep("", 7)),
+#        spc2 = c(rep("", 4),
+#                 "factor(tuyear)",
+#                 "factor(gestfips)",
+#                 rep("factor(gestfips) + factor(tuyear)", 5)),
+#        spc3 = c(rep("", 7), "u3rate", "u4rate", "u5rate", "u6rate")) %>%
+#     mutate(lm_spc = accumulate(spc1, ~if_else(.y == "", .x, str_c(.x, .y, sep = " + "))),
+#            lm_spc = if_else(spc2 == "", lm_spc, str_c(lm_spc, spc2, sep = " + ")),
+#            lm_spc = if_else(spc3 == "", lm_spc, str_c(lm_spc, spc3, sep = " + "))) %>%
+#     select(lm_spc)
 
 # OLS model specifications (RHSs of the regressions) and names of dependent variables (LHSs of the regressions)
 df_spc <-
@@ -122,42 +137,42 @@ df_spc <-
                                  "t_meals", "t_housework", "t_home_car_maintenance", "t_ahk_homeproduction", "t_nonmarket_work_ttl",
                                  "t_ahk_education", "t_ahk_civic", "t_other")) %>%
                  mutate(activity_number = row_number(),
-                        activity_label  = case_when(activity == "t_shop_groceries"       ~ "Groceries",
-                                                    activity == "t_shop_gas"             ~ "Gas",
-                                                    activity == "t_shop_food"            ~ "Food",
-                                                    activity == "t_shop_ggf"             ~ "Groceries, gas, food",
-                                                    activity == "t_shop_other"           ~ "Other",
-                                                    activity == "t_shop_other_shop"      ~ "Other: shopping",
-                                                    activity == "t_shop_other_research"  ~ "Other: research",
-                                                    activity == "t_shop_other_wait"      ~ "Other: waiting",
-                                                    activity == "t_shop_travel"          ~ "Travel",
-                                                    activity == "t_shop_ttl"             ~ "Total shopping  time",
-                                                    # activity == "t_ahk_shop"             ~ "Shopping",
-                                                    activity == "t_ahk_work"             ~ "Work",
-                                                    activity == "t_ahk_work_search"      ~ "Work: Search",
-                                                    activity == "t_work_ttl"             ~ "Work: Total",
-                                                    activity == "t_ahk_leisure_tv"       ~ "Leisure: TV",
-                                                    activity == "t_ahk_leisure_oth"      ~ "Leisure: Other",
-                                                    activity == "t_leisure"              ~ "Leisure: Total",
-                                                    activity == "t_eat"                  ~ "Eating",
-                                                    activity == "t_ahk_sleep"            ~ "Sleeping",
-                                                    activity == "t_personal_care"        ~ "Personal care",
-                                                    activity == "t_ahk_esp"              ~ "Eating, sleeping, personal care",
-                                                    activity == "t_ahk_espleisure"       ~ "Eating, sleeping, personal care, leisure",
-                                                    activity == "t_ahk_ownmdcare"        ~ "Own medical care",
-                                                    activity == "t_ahk_othercare"        ~ "Taking care of others",
-                                                    activity == "t_ahk_childcare"        ~ "Childcare",
-                                                    activity == "t_childcare_play"       ~ "Childcare: playing",
-                                                    activity == "t_meals"                ~ "Preparing meal",
-                                                    activity == "t_housework"            ~ "Housework",
-                                                    activity == "t_home_car_maintenance" ~ "Home and vehicle maintenance and repair",
-                                                    activity == "t_ahk_homeproduction"   ~ "Home production",
-                                                    activity == "t_nonmarket_work_ttl"   ~ "Non-market Work: Total",
-                                                    activity == "t_ahk_education"        ~ "Education",
-                                                    activity == "t_ahk_civic"            ~ "Civic",
-                                                    activity == "t_other"                ~ "Other activities",
-                                                    activity == "t_ttl"                  ~ "Total time"))) %>%
-    mutate(activity_label = factor(activity_label, levels = activity_label)) %>%
+                        activity_label  = recode(activity, "t_shop_groceries"       = "Groceries",
+                                                           "t_shop_gas"             = "Gas",
+                                                           "t_shop_food"            = "Food",
+                                                           "t_shop_ggf"             = "Groceries, gas, food",
+                                                           "t_shop_other"           = "Other",
+                                                           "t_shop_other_shop"      = "Other: shopping",
+                                                           "t_shop_other_research"  = "Other: research",
+                                                           "t_shop_other_wait"      = "Other: waiting",
+                                                           "t_shop_travel"          = "Travel",
+                                                           "t_shop_ttl"             = "Total shopping time",
+                                                           # "t_ahk_shop"             = "Shopping",
+                                                           "t_ahk_work"             = "Work",
+                                                           "t_ahk_work_search"      = "Work: Search",
+                                                           "t_work_ttl"             = "Work: Total",
+                                                           "t_ahk_leisure_tv"       = "Leisure: TV",
+                                                           "t_ahk_leisure_oth"      = "Leisure: Other",
+                                                           "t_leisure"              = "Leisure: Total",
+                                                           "t_eat"                  = "Eating",
+                                                           "t_ahk_sleep"            = "Sleeping",
+                                                           "t_personal_care"        = "Personal care",
+                                                           "t_ahk_esp"              = "Eating, sleeping, personal care",
+                                                           "t_ahk_espleisure"       = "Eating, sleeping, personal care, leisure",
+                                                           "t_ahk_ownmdcare"        = "Own medical care",
+                                                           "t_ahk_othercare"        = "Taking care of others",
+                                                           "t_ahk_childcare"        = "Childcare",
+                                                           "t_childcare_play"       = "Childcare: playing",
+                                                           "t_meals"                = "Preparing meal",
+                                                           "t_housework"            = "Housework",
+                                                           "t_home_car_maintenance" = "Home and vehicle maintenance and repair",
+                                                           "t_ahk_homeproduction"   = "Home production",
+                                                           "t_nonmarket_work_ttl"   = "Non-market Work: Total",
+                                                           "t_ahk_education"        = "Education",
+                                                           "t_ahk_civic"            = "Civic",
+                                                           "t_other"                = "Other activities",
+                                                           "t_ttl"                  = "Total time"),
+                        activity_label = factor(activity_label, levels = activity_label))) %>%
     select(lm_spc_number, lm_spc, activity_number, activity, activity_label)
 
 
@@ -173,4 +188,4 @@ df_lm_results_all <-
                                            conf_low_clustered  = estimate - 2*std_error_clustered,
                                            conf_high_clustered = estimate + 2*std_error_clustered))))
 
-save(df_lm_results_all, file = paste0(edir_atus, "atus_", tfirst, "_", tlast, "_individual_lm_all.Rdata"))
+save(df_lm_results_all, file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual_lm_all.Rdata"))

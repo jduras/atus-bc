@@ -46,8 +46,7 @@ stargazer(mylm, type = "text",
 
 #### test stargazer fix for omitted variables ####
 
-library(devtools)
-install_github("jduras/stargazer")
+remotes::install_github("jduras/stargazer")
 library(stargazer)
 
 stargazer(df.lm.results.ttl$lm.model[c(1,2,7)], type = "text",
