@@ -4,7 +4,7 @@ message(str_c("Merging unemployment date BLS and CPS from ", tfst, " to ", tlst)
 # BLS data constructed in c06_extract_bls_data.R
 load(file = str_c(edir_atus, "bls_", tfst, "_", tlst, "_ux.Rdata"))
 # CPS data constructed in c07_extract_cps_data.R
-load(file = str_c(edir_atus, "cps_ux.Rdata"))
+load(file = str_c(edir_atus, "cps_", tfst, "_", tlst, "_ux.Rdata"))
 
 
 #### merge national level unemployment data from CPS and BLS ####
@@ -61,7 +61,7 @@ chosen_variable <- "n_dw"
 df_ux %>%
     tk_xts(select = starts_with(chosen_variable), date_var = yearm) %>%
     dygraphs::dygraph() %>%
-        dyRangeSelector(dateWindow = c("2000-01-01", str_c(tlst, "-12-31")))
+        dygraphs::dyRangeSelector(dateWindow = c("2000-01-01", str_c(tlst, "-12-31")))
 
 save(df_ux, file = str_c(edir_atus, "ux_", tfst, "_", tlst, ".Rdata"))
 
@@ -82,11 +82,11 @@ df_ux_states_m <-
                by = c("period", "gestfips"))
 
 # plot BLS and CPS based unemployment rates by state
-df_ux_states_m %>%
+p <- df_ux_states_m %>%
     select(yearm, gestfips, state_code, starts_with("rate_u")) %>%
     gather(measure, value, -c(yearm, gestfips, state_code)) %>%
     mutate(measure = str_to_upper(str_c(str_sub(measure, 6, 7), " ", str_sub(measure, 9, 11), " ", str_sub(measure, 13, -1)))) %>%
-    {ggplot(data = .) +
+    ggplot() +
         geom_line(aes(x = yearm, y = value, col = measure)) +
         geom_rect(data = (rec_dates %>% filter(Start > as.yearmon("200001", format = "%Y%m"))),
                   aes(xmin = Start, xmax = End, ymin = -Inf, ymax = +Inf), fill = "steelblue", alpha = 0.2) +
@@ -95,13 +95,15 @@ df_ux_states_m %>%
              title = "Unemployment Rate by State") +
         facet_wrap( ~ state_code) +
         theme(legend.position = "top",
-              legend.justification = "left")} %>%
-    ggplotly()
+              legend.justification = "left",
+              panel.spacing = unit(0.1, "lines"))
+p
+ggplotly(p)
 
 df_ux_states_q <-
     df_ux_states_m %>%
     group_by(gestfips, tuyear, tuquarter) %>%
-    summarise_at(vars(starts_with("rate_u")), funs(mean)) %>%
+    summarise_at(vars(starts_with("rate_u")), list(mean)) %>%
     ungroup() %>%
     select(tuyear, tuquarter, gestfips,
            u3rate = rate_u3_cps_nsa,
@@ -112,7 +114,7 @@ df_ux_states_q <-
 df_ux_states_a <-
     df_ux_states_m %>%
     group_by(gestfips, tuyear) %>%
-    summarise_at(vars(starts_with("rate_u")), funs(mean)) %>%
+    summarise_at(vars(starts_with("rate_u")), list(mean)) %>%
     ungroup() %>%
     select(tuyear, gestfips,
            u3rate = rate_u3_cps_nsa,
