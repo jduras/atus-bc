@@ -69,4 +69,4 @@ df_ux_cps <-
     group_by(period) %>%
     summarise_all(sum)
 
-save(df_ux_cps, df_ux_states_cps, file = str_c(edir_atus, "cps_ux.Rdata"))
+save(df_ux_cps, df_ux_states_cps, file = str_c(edir_atus, "cps_", tfst, "_", tlst, "_ux.Rdata"))
