@@ -5,7 +5,8 @@ load(file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual.Rdata"))
 df_sample_size <-
     df_timeuse_all %>%
     group_by(tuyear) %>%
-    summarise(obs = length(unique(tucaseid)))
+    summarise(obs = length(unique(tucaseid))) %>%
+    mutate(frac_obs = 100*obs/sum(obs))
 
 df_sample_size %>%
     ggplot(aes(x = tuyear, y = obs)) +
@@ -15,6 +16,14 @@ df_sample_size %>%
 df_sample_size %>%
     summarise(mean(obs), mean(obs[tuyear != 2003]))
 
+df_sample_size_bymoth <-
+    df_timeuse_all %>%
+    group_by(tuyear, tumonth) %>%
+    summarise(obs = length(unique(tucaseid)))
+
+df_sample_size_bymoth %>%
+    summarise(mean(obs), mean(obs[tuyear != 2003]))
+
 # sample size by family income
 df_timeuse_all %>%
     group_by(faminc_f_1, tuyear) %>%
@@ -22,10 +31,17 @@ df_timeuse_all %>%
     group_by(tuyear) %>%
     mutate(fraction = weight / sum(weight)) %>%
     group_by(faminc_f_1) %>%
-    summarise(sum_nobs = sum(nobs), avg_weight = mean(weight), avg_fraction = mean(fraction))
+    summarise(sum_nobs = sum(nobs), avg_weight = mean(weight), avg_fraction = 100*mean(fraction))
+
+t_cutoff <- 12
+
+# observations with more than 12 hours per day spent shopping
+df_timeuse_all %>%
+    filter(t_shop_ttl > t_cutoff) %>%
+    # select(tuyear, tucaseid, t_shop_groceries, t_shop_gas, t_shop_food, t_shop_other, t_shop_travel, t_shop_ttl) %>%
+    glimpse()
 
 # observations with more than 12 hours in day
-t_cutoff <- 12
 df_timeuse_all %>%
     select(tuyear, tucaseid, faminc, weight, starts_with("t_shop")) %>%
     gather(activity, timespent, starts_with("t_shop")) %>%
@@ -38,6 +54,119 @@ df_timeuse_all %>%
         geom_point(size = 2)
 
 # summary statistics for time spent on different shopping related activities
+df_shopping_statistics_byactivity_byyear <-
+    df_timeuse_all %>%
+    select(tucaseid, tuyear, weight, starts_with("t_shop"), -"t_shop_ggf") %>%
+    gather(activity, timespent, starts_with("t_")) %>%
+    group_by(tucaseid) %>%
+    mutate(activity = str_replace(activity, "t_shop_", ""),
+           timespentgt0 = if_else(timespent > 0, timespent, NA_real_),
+           timespentfrac = timespent / timespent[activity == "ttl"]) %>%
+    ungroup() %>%
+    group_by(tuyear, activity) %>%
+    summarise_at(vars(timespent, timespentgt0, timespentfrac),
+                 list(min = ~min(., na.rm = TRUE),
+                      q25 = ~wtd.quantile(., weights = weight, probs = 0.25, na.rm = TRUE),
+                      q50 = ~wtd.quantile(., weights = weight, probs = 0.50, na.rm = TRUE),
+                      q75 = ~wtd.quantile(., weights = weight, probs = 0.75, na.rm = TRUE),
+                      max = ~max(., na.rm = TRUE),
+                      avg = ~questionr::wtd.mean(., weights = weight, na.rm = TRUE))) %>%
+    gather(measure, value, -c(tuyear, activity)) %>%
+    separate(measure, into = c("variable", "statistic")) %>%
+    spread(statistic, value) %>%
+    mutate(activity_label = factor(activity,
+                                   levels = c("groceries", "gas", "food", "other", "travel", "ttl", "other_shop", "other_research", "other_wait"),
+                                   # labels = c("Groceries", "Gas", "Food (excl. groceries)", "Other", "Travel", "Total"),
+                                   # labels = c("Groceries", "Gas", "Food\n(excl. groceries)", "Other", "Travel", "Total"),
+                                   labels = c("Groceries", "Gas", "Food\n(excl. groceries)", "Other", "Travel", "Total", "Other: Shopping", "Other: Research", "Other: Waiting"),
+                                   ordered = TRUE)) %>%
+    select(variable, activity_label, tuyear, everything()) %>%
+    arrange(variable, activity_label, tuyear)
+
+# average time spent by shopping activity and its fraction of total shopping time
+df_shopping_statistics_byactivity_byyear %>%
+    select(variable, activity_label, tuyear, avg) %>%
+    group_by(variable, activity_label) %>%
+    summarise(avg = mean(avg)) %>%
+    spread(variable, avg) %>%
+    mutate(timespent_minutes = 60 * timespent)
+
+df_shopping_avg_ttl <-
+    df_shopping_statistics_byactivity_byyear %>%
+    filter(variable == "timespent") %>%
+    filter(activity == "ttl") %>%
+    mutate(avg_minutes = 60 * avg) %>%
+    select(tuyear, avg_minutes)
+
+# plot time allocation into various shopping category - minutes
+p <- df_shopping_statistics_byactivity_byyear %>%
+    filter(variable == "timespent") %>%
+    filter(activity %in% c("groceries", "gas", "food", "other", "travel")) %>%
+    mutate(avg_minutes = 60 * avg) %>%
+    ggplot() +
+        geom_col(aes(x = tuyear, y = avg_minutes, fill = activity_label), position = position_stack(reverse = TRUE), col = "white") +
+        geom_text(data = df_shopping_avg_ttl, aes(x = tuyear, y = 48, label = number_format(accuracy = 0.1)(avg_minutes)),
+                  col = "black", size = 4) +
+        annotate("text", x = 2002.5, y = 50, label = "Total Shooping Time [mins]",
+                 fontface = "plain", colour = "black", size = 3, hjust = "left") +
+        scale_x_continuous(breaks = seq(2003, 2018, by = 1), expand = c(0.01, 0)) +
+        scale_y_continuous(breaks = seq(0, 45, by = 5), expand = c(0.02, 0.02)) +
+        labs(x = "Year", y = "[mins]", fill = "",
+             title = "Average Total Shopping Time and Average Time Spent on Shopping Subcategories") +
+        # coord_flip() +
+        theme_minimal() +
+        theme(axis.title.x = element_text(hjust = 1),
+              axis.title.y = element_text(hjust = 1),
+              panel.grid = element_blank(),
+              legend.position = "top",
+              legend.justification = "left")
+p
+ggplotly(p)
+
+# plot time allocation into various shopping category - percentages
+p <- df_shopping_statistics_byactivity_byyear %>%
+    filter(variable == "timespentfrac") %>%
+    filter(activity %in% c("groceries", "gas", "food", "other", "travel")) %>%
+    ggplot() +
+        geom_col(aes(x = tuyear, y = avg, fill = activity_label), position = position_stack(reverse = TRUE), col = "white") +
+        geom_text(data = df_shopping_avg_ttl, aes(x = tuyear, y = 1.06, label = number_format(accuracy = 0.1)(avg_minutes)),
+                  col = "black", size = 4) +
+        annotate("text", x = 2002.5, y = 1.11, label = "Total Shooping Time [mins]",
+                  fontface = "plain", colour = "black", size = 3, hjust = "left") +
+        scale_x_continuous(breaks = seq(2003, 2018, by = 1), expand = c(0, 0)) +
+        scale_y_continuous(breaks = seq(0, 1, by = 0.25), labels = scales::percent_format(accuracy = 1), expand = c(0, 0.01)) +
+        labs(x = "", y = "", fill = "",
+             title = "Average Total Shopping Time and Average Fraction Spent on Shopping Subcategories") +
+        # coord_flip() +
+        theme_minimal() +
+        theme(panel.grid = element_blank(),
+              legend.position = "top",
+              legend.justification = "left")
+p
+ggplotly(p)
+
+
+# calculate fraction of time spent on subcategories
+df_shopping_byactivity_byyear_timespent_fractions <-
+    df_timeuse_all %>%
+    filter(t_shop_ttl > 0) %>%
+    select(tucaseid, tuyear, weight, starts_with("t_shop"), -"t_shop_ggf") %>%
+    gather(activity, timespent, -c(tucaseid, weight, tuyear)) %>%
+    mutate(tuyear = factor(tuyear),
+           activity = str_replace(activity, "t_shop_", ""),
+           activity_label = factor(activity,
+                                   levels = c("groceries", "gas", "food", "other", "travel", "ttl", "other_shop", "other_research", "other_wait"),
+                                   # labels = c("Groceries", "Gas", "Food (excl. groceries)", "Other", "Travel", "Total"),
+                                   # labels = c("Groceries", "Gas", "Food\n(excl. groceries)", "Other", "Travel", "Total"),
+                                   labels = c("Groceries", "Gas", "Food\n(excl. groceries)", "Other", "Travel", "Total", "Other: Shopping", "Other: Research", "Other: Waiting"),
+                                   ordered = TRUE),
+           timespent = 60 * timespent) %>%
+    group_by(tucaseid) %>%
+    mutate(timespent_frac = timespent / timespent[activity == "ttl"]) %>%
+    ungroup()
+
+
+
 df_timeuse_all %>%
     select(t_shop_groceries, t_shop_gas, t_shop_food, t_shop_other, t_shop_travel, t_shop_ttl, weight) %>%
     gather(activity, timespent, starts_with("t_")) %>%
@@ -57,19 +186,32 @@ df_timeuse_all %>%
     arrange(activity_label)
 
 
+
 #### distributions of time spent on shopping related activities ####
+
+# fraction of individuals with non-zero time spent by income
+df_timeuse_all %>%
+    select(faminc_f_1, tudiaryday, weight, starts_with("t_")) %>%
+    mutate_at(vars(starts_with("t_")), funs(as.numeric(. > 0))) %>%
+    group_by(faminc_f_1) %>%
+    summarise_at(vars(-weight), list(~wtd.mean(., w = weight, na.rm = TRUE))) %>%
+    gather(measure, value, -faminc_f_1) %>%
+    spread(faminc_f_1, value) %>%
+    print(n = 50)
 
 # calculate fractions of individuals with nonzero amount of time spent
 df_shopping_byactivity_byyear <-
     df_timeuse_all %>%
-    select(tuyear, weight, t_shop_groceries, t_shop_gas, t_shop_food, t_shop_other, t_shop_travel, t_shop_ttl) %>%
+    select(tuyear, weight, starts_with("t_shop"), - "t_shop_ggf") %>%
     gather(activity, timespent, -c(weight, tuyear)) %>%
     mutate(tuyear = factor(tuyear),
            activity = str_replace(activity, "t_shop_", ""),
            activity_label = factor(activity,
-                                   levels = c("groceries", "gas", "food", "other", "travel", "ttl"),
-                                   labels = c("Groceries", "Gas", "Food (excl. groceries)", "Other", "Travel", "Total"), ordered = TRUE),
-                                   # labels = c("Groceries", "Gas", "Food\n(excl. groceries)", "Other", "Travel", "Total"), ordered = TRUE),
+                                   levels = c("groceries", "gas", "food", "other", "travel", "ttl", "other_shop", "other_research", "other_wait"),
+                                   # labels = c("Groceries", "Gas", "Food (excl. groceries)", "Other", "Travel", "Total"),
+                                   # labels = c("Groceries", "Gas", "Food\n(excl. groceries)", "Other", "Travel", "Total"),
+                                   labels = c("Groceries", "Gas", "Food\n(excl. groceries)", "Other", "Travel", "Total", "Other: Shopping", "Other: Research", "Other: Waiting"),
+                                   ordered = TRUE),
            timespent = 60 * timespent)
 
 df_timeuse_fractions_gt0 <-
@@ -101,6 +243,7 @@ g <- ggplot() +
     scale_x_log10(expand = c(0.01, 0),
                   breaks = c(1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120, 600)) +
     scale_y_discrete(expand = c(0.01, 0)) +
+    scale_fill_cyclical(values = c("gray70", "steelblue")) +
     labs(x = "Time spent per day [mins]") +
     theme_ridges(font_size = 11, grid = TRUE) +
     theme(axis.title.y = element_blank(),
@@ -112,8 +255,8 @@ g <- ggplot() +
 # non-weighted densities
 g %+% {df_shopping_byactivity_byyear %>%
     filter(timespent > 0)} +
-        geom_density_ridges(aes(x = timespent, y = activity_label),
-                            scale = 4, rel_min_height = 0.00001, alpha = 0.7) +
+        geom_density_ridges(aes(x = timespent, y = activity_label, fill = activity_label),
+                            scale = 4, rel_min_height = 0.00001, alpha = 0.7, color = "white") +
         geom_text(data = df_timeuse_fractions_gt0,
                   aes(x = 1.1, y = activity_label, label = str_c(percent_format(accuracy = 0.1)(fractiongt0), " non-zero")),
                   hjust = "left", vjust = -3)
@@ -121,23 +264,26 @@ g %+% {df_shopping_byactivity_byyear %>%
 # non-weighted densities by year
 g %+% {df_shopping_byactivity_byyear %>%
         filter(timespent > 0)} +
-    geom_density_ridges(aes(x = timespent, y = tuyear), scale = 5, alpha = 0.6, color = "white") +
+    geom_density_ridges(aes(x = timespent, y = tuyear, fill = tuyear), scale = 5, alpha = 0.6, color = "white") +
     facet_wrap(~activity_label) +
     labs(title = "Time Spent on Shopping Related Activities")
 
 # weighted densities - single plot for selected year
 p <- g %+% {df_shopping_byactivity_byyear_densities %>%
+        # filter(activity %in% c("groceries", "gas", "food", "other", "travel", "ttl")) %>%
         filter(tuyear == 2018)} +
     geom_density_ridges(aes(x = timespent, y = activity_label, height = density, fill = activity_label),
                         stat = "identity", scale = 5, alpha = 0.7, color = "white") +
     geom_text(data = df_timeuse_fractions_gt0_byyear %>%
+                  # filter(activity %in% c("groceries", "gas", "food", "other", "travel", "ttl")) %>%
                   filter(tuyear == 2018),
               aes(x = 0.25, y = activity_label, label = str_c(percent_format(accuracy = 0.1)(fractiongt0), " non-zero")),
               size = 5, hjust = "left", vjust = 0) +
     scale_fill_cyclical(values = c("gray70", "steelblue")) +
     # scale_fill_cyclical(values = c("#4040B0", "#9090F0")) +
-    labs(title = "Time Spent on Shopping Related Activities in 2018") +
-    theme_ridges(font_size = 20, grid = TRUE) +
+    # labs(title = "Time Spent on Shopping Related Activities in 2018") +
+    labs(title = "") +
+    theme_ridges(font_size = 23, grid = TRUE) +
     theme(axis.title.y = element_blank(),
           panel.spacing = unit(1.5, "lines"),
           strip.background = element_blank(),
@@ -145,8 +291,7 @@ p <- g %+% {df_shopping_byactivity_byyear_densities %>%
           strip.text.x = element_text(face = "bold", hjust = 0))
 p
 
-fig_file <- str_c(odir_atus, "fig_hist_t_shop_by_categories_2018.pdf")
-ggsave(filename = fig_file, plot = p, width = 16, height = 9)
+ggsave(filename = str_c(odir_atus, "fig_hist_t_shop_by_categories_2018.pdf"), plot = p, width = 16, height = 9)
 
 # weighted densities - facet plot
 g %+% df_shopping_byactivity_byyear_densities +
@@ -230,7 +375,7 @@ df_timeuse_shop_avg <-
            activity_label = factor(activity,
                                    levels = c("groceries", "gas", "food", "other", "travel", "ttl",
                                               "ggf", "other_shop", "other_research", "other_wait"),
-                                   labels = c("Groceries", "Gas", "Food (excl. groceries)", "Other", "Travel", "Total",
+                                   labels = c("Groceries", "Gas", "Food\n(excl. groceries)", "Other", "Travel", "Total",
                                               "Groceries, gas, food", "Other: shopping", "Other: research", "Other: waiting")),
            activity_label = factor(activity_label)) %>%
     group_by(activity, measure) %>%
@@ -240,8 +385,8 @@ df_timeuse_shop_avg <-
 g <- ggplot() +
     geom_rect(data = tibble(Start = 2008, End = 2010),
               aes(xmin = 2008, xmax = 2010, ymin = -Inf, ymax = +Inf), alpha = 0.2) +
-    scale_x_continuous(breaks = seq(from = 2004, to = 2016, by = 2)) +
-    labs(title = "Average Hours Per Day Spent on Shopping Related Activities",
+    scale_x_continuous(breaks = seq(from = 2004, to = 2018, by = 2)) +
+    labs(title = "Hours Per Day Spent on Shopping Related Activities",
          x = "", y = "",
          col = "Shopping Activity") +
     coord_cartesian(clip = "off") +
@@ -256,33 +401,42 @@ g %+% df_timeuse_shop_avg +
     geom_point(aes(x = tuyear, y = value, col = activity_label)) +
     theme(legend.position = c(0.8, 0.25))
 
-g %+% {df_timeuse_shop_avg %>%
-    filter(measure != "median")} +
+p <- g %+% {df_timeuse_shop_avg %>%
+                filter(measure != "median")} +
     geom_hline(aes(yintercept = 100), linetype = "dotted") +
     geom_line(aes(x = tuyear, y = index_2003, col = activity_label), size = 1.02) +
     geom_point(aes(x = tuyear, y = index_2003, col = activity_label)) +
-    geom_text(data = df_timeuse_shop_avg %>% filter(tuyear == 2017, measure != "median"),
-              aes(x = 2017.25, y = index_2003, label = activity_label, col = activity_label),
+    geom_text(data = df_timeuse_shop_avg %>% filter(tuyear == 2018, measure != "median"),
+              aes(x = 2018.1, y = index_2003, label = activity_label, col = activity_label),
               hjust = "left", vjust = "center", fontface = "bold") +
     labs(subtitle = "Index (2003 = 100)")
+p
+
+ggsave(filename = str_c(odir_atus, "fig_agg_t_shop_by_categories_single_details_", tfst, "_", tlst, ".pdf"),
+       plot = p, width = 11, height = 8.5)
 
 # plot average time spent on various activities by year - all actitivies in single plot
 p <- g %+% {df_timeuse_shop_avg %>%
-        # filter(tuyear <= 2015) %>%
-        filter(measure == "mean")} +
+                # filter(tuyear <= 2015) %>%
+                filter(measure == "mean")} +
         geom_hline(aes(yintercept = 100), linetype = "dotted") +
         geom_line(aes(x = tuyear, y = index_2003, col = activity_label), size = 1.02) +
         geom_point(aes(x = tuyear, y = index_2003, col = activity_label)) +
-        geom_text(data = df_timeuse_shop_avg %>% filter(tuyear == 2017, measure == "mean"),
-                  aes(x = 2017.25, y = index_2003, label = activity_label, col = activity_label),
-                  hjust = "left", vjust = "center", fontface = "bold") +
+        geom_text(data = df_timeuse_shop_avg %>% filter(tuyear == 2018, measure == "mean"),
+                  aes(x = 2018.1, y = index_2003, label = activity_label, col = activity_label),
+                  size = 5, hjust = "left", vjust = "center") +
         # scale_x_date(breaks = seq(from = as.Date("2004-01-01"), to = as.Date("2016-12-31"), by = "10 years"), date_labels = "%Y") +
-        labs(subtitle = "Index (2003 = 100)")
+        labs(subtitle = "Index (2003 = 100)") +
+    theme_ridges(font_size = 15, grid = TRUE) +
+    theme(# axis.text = element_text(size = 11),
+          plot.margin = unit(c(0, 7, 0, 0), "lines"),
+          legend.position = "none",
+          strip.background = element_blank(),
+          strip.text.x = element_blank())
 p
 
-fig_file <- str_c(odir_atus, "fig_agg_t_shop_by_categories_single.pdf")
-ggsave(filename = fig_file, plot = p, width = 5.5, height = 4.25)
-# ggsave(filename = fig_file, plot = p, width = 4.675, height = 6.05)
+ggsave(filename = str_c(odir_atus, "fig_agg_t_shop_by_categories_single_", tfst, "_", tlst, ".pdf"),
+       plot = p, width = 8, height = 4.25)
 
 # plot average time spent on various activities by year - facet plot
 p <- g %+% {df_timeuse_shop_avg %>%
@@ -295,9 +449,8 @@ p <- g %+% {df_timeuse_shop_avg %>%
         theme(strip.background = element_blank())
 p
 
-fig_file <- str_c(odir_atus, "fig_agg_t_shop_by_categories.pdf")
-# ggsave(filename = fig_file, plot = p, width = 4.25, height = 5.5)
-ggsave(filename = fig_file, plot = p, width = 4.675, height = 6.05)
+ggsave(filename = str_c(odir_atus, "fig_agg_t_shop_by_categories.pdf"),
+       plot = p, width = 4.675, height = 6.05)
 
 
 
@@ -634,9 +787,8 @@ p <- df_avg_time_shopping_by_incomegrp %>%
               plot.margin = unit(c(0, 6, 0, 0), "lines"))
 p
 
-fig_file <- str_c(odir_atus, "fig_ind_t_shop_by_categories.pdf")
-# ggsave(filename = fig_file, plot = p, width = 4.25, height = 5.5)
-ggsave(filename = fig_file, plot = p, width = 8, height = 5)
+ggsave(filename = str_c(odir_atus, "fig_ind_t_shop_by_categories_", tfst, "_", tlst, ".pdf"),
+       plot = p, width = 8, height = 5)
 
 
 # generate aggregates (weighted averages) for each year
@@ -815,3 +967,61 @@ df_agg_stats_to_plot %>%
              title = "Demographic statistics by family income vs population average") +
         # coord_flip() +
         facet_wrap(~measure, scales = "free")
+
+
+
+# plot average aggregate demographic statistics for whole population and by family income
+df_agg_stats_to_plot <-
+    df_agg_stats %>%
+    gather(group, value, -measure) %>%
+    # filter(!(measure %in% c("age", "share", "num_child", "retired", "student"))) %>%
+    filter(!(measure %in% c("num_child", "disabled", "student"))) %>%
+    filter(!str_detect(measure, "age_f")) %>%
+    filter(!str_detect(measure, "educ_f")) %>%
+    mutate(group = factor(group, levels = c("whole_population",
+                                            "faminc_0_to_12.5",
+                                            "faminc_12.5_to_25",
+                                            "faminc_25_to_50",
+                                            "faminc_50_to_75",
+                                            "faminc_75_to_100",
+                                            "faminc_100_to_150",
+                                            "faminc_150_and_over"),
+                          labels = c("whole_population", "0-12.5", "12.5-25", "25-50", "50-75", "75-100", "100-150", "150+"),
+                          ordered = TRUE),
+           measure = factor(measure,
+                            levels = c("share",
+                                       "age", "male", "black", "married",
+                                       "spouse_emp", "hv_child", "num_child_gt_0",
+                                       "working", "unemp", "homemaker", "retired"),
+                            labels = c("share",
+                                       "age", "male", "not white", "married",
+                                       "employed spouse", "have child", "number of children",
+                                       "employed", "unemployed", "homemaker", "retired"),
+                            ordered = TRUE))
+
+p <- df_agg_stats_to_plot %>%
+    filter(group != "whole_population") %>%
+    ggplot(aes(x = group, y = value)) +
+        geom_point(size = 3) +
+        geom_hline(data = df_agg_stats_to_plot %>%
+                       filter(group == "whole_population"),
+                   aes(yintercept = value), col = "red", linetype = "dashed", alpha = 0.5) +
+        # geom_text(data = df_agg_stats_to_plot %>%
+        #               filter(group == "whole_population"),
+        #           aes(x = 0, y = value), label = "population average", col = "red", alpha = 0.5, hjust = 0, vjust = 0) +
+        labs(x = "", y = "",
+             title = "") +
+             #             title = "Demographic statistics by family income vs population average") +
+        # coord_flip() +
+        facet_wrap(~measure, scales = "free") +
+        theme_minimal() +
+        theme(text = element_text(size = 13),
+              axis.text.x = element_text(size = 9),
+              axis.text.y = element_text(size = 9),
+              panel.spacing = unit(0.5, "cm"),
+              panel.spacing.y = unit(1, "cm"),
+              strip.background = element_blank(),
+              strip.text = element_text(size = 16, face = "bold", hjust = 0))
+p
+
+ggsave(filename = str_c(odir_atus, "fig_ind_characteristics_", tfst, "_", tlst, ".pdf"), plot = p, width = 16, height = 9)
