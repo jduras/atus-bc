@@ -85,29 +85,41 @@ lm_spc <- c("faminc_f_1",
             "faminc_f_1 + demo_female+demo_black+demo_married+demo_hv_child+demo_spouse_emp + demo_age_f + demo_educ_f + lfs_unemp+lfs_retired+lfs_homemaker+lfs_student + factor(gestfips) + factor(tuyear) + factor(tudiaryday) + u6rate",
             "faminc_f_1 + demo_female+demo_black+demo_married+demo_hv_child+demo_spouse_emp + demo_age_f + demo_educ_f + lfs_unemp+lfs_retired+lfs_homemaker+lfs_student + factor(gestfips) + factor(tuyear) + factor(tudiaryday) + umcsent")
 
+lm_spc_label <- c("no controls",
+                  "add day of week",
+                  "also add demographics",
+                  "also add demographics and LF status",
+                  "also add year fixed effects",
+                  "also add state fixed effects",
+                  "also add fixed effects",
+                  "also add unemployment rate",
+                  "also add U4 unemployment rate",
+                  "also add U5 unemployment rate",
+                  "also add U6 unemployment rate",
+                  "also add consumer sentiment")
+
+df_lm_spc <-
+    tibble(lm_spc,
+           lm_spc_label = factor(lm_spc_label, levels = lm_spc_label, ordered = TRUE)) %>%
+    mutate(lm_spc_number = str_c("Model ", str_pad(row_number(), 2, "left")))
 
 # estimate individual level regressions: time spent on various activities
 
 ### version 1 ####
 
-estimate_lm <- function(df, spc) {
-    activity <- df %>% slice(1) %>% pull(activity)
-
-    lm_model <- map(spc, ~lm(str_c("timespent ~ ", .x), weight = weight, data = df))
-
-    df_lm_results <- tibble(activity, spc, lm_model)
+estimate_lm <- function(df_data, df_spc) {
+    activity <- df_data %>% slice(1) %>% pull(activity)
 
     df_lm_results_coefs <-
-        df_lm_results %>%
-        mutate(lm_coefs = map(lm_model, . %>% tidy(conf.int = TRUE) %>% clean_names()),
+        df_spc %>%
+        mutate(activity = activity,
+               lm_model = map(lm_spc, ~lm(str_c("timespent ~ ", .x), weight = weight, data = df_data)),
+               lm_coefs = map(lm_model, . %>% tidy(conf.int = TRUE) %>% clean_names()),
                lm_coefs = map2(lm_model, lm_coefs,
-                               ~(.y %>% mutate(std_error_clustered = coeftest(.x, clustered_se(.x, df$gestfips))[,"Std. Error"],
+                               ~(.y %>% mutate(std_error_clustered = coeftest(.x, clustered_se(.x, df_data$gestfips))[,"Std. Error"],
                                                conf_low_clustered  = estimate - 2*std_error_clustered,
-                                               conf_high_clustered = estimate + 2*std_error_clustered)))
-        ) %>%
+                                               conf_high_clustered = estimate + 2*std_error_clustered)))) %>%
         select(-lm_model)
-
-    # save(df_lm_results, file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual_lm_", activity, ".Rdata"))
 
     return(df_lm_results_coefs)
 }
@@ -124,7 +136,7 @@ df_lm_results_coefs_all <-
     # filter(tuyear <= 2016) %>%
     arrange(activity, gestfips) %>%
     group_split(activity) %>%
-    map_dfr(estimate_lm, spc = lm_spc)
+    map_dfr(estimate_lm, df_spc = df_lm_spc)
 toc()
 
 save(df_lm_results_coefs_all, file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual_lm_coefs_all.Rdata"))
