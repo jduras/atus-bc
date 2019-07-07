@@ -1,21 +1,12 @@
 
+load(file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual_lm_coefs_all.Rdata"))
+
 #### plot estimated coefficients for income group categorical variable for selected models ####
 
 df_lm_results_coefs_all_toplot <-
     df_lm_results_coefs_all %>%
-    group_by(activity) %>%
-    mutate(lm_spc_number = str_c("Model ", str_pad(row_number(), 2, "left"))) %>%
-    ungroup() %>%
     filter(parse_number(lm_spc_number) %in% c(1,4,7,8)) %>%
-    mutate(
-        # lm_spc_label = case_when(lm_spc_number == "Model  1" ~ "no controls",
-        #                          lm_spc_number == "Model  4" ~ "add demographics and LF status",
-        #                          lm_spc_number == "Model  7" ~ "add fixed effects",
-        #                          lm_spc_number == "Model  8" ~ "add unemployment rate"),
-        lm_spc_label = factor(lm_spc_number,
-                              labels = c("no controls", "add demographics and LF status", "add fixed effects", "add unemployment rate"),
-                              ordered = TRUE)) %>%
-    group_by(spc) %>%
+    group_by(lm_spc) %>%
     mutate(activity_number = row_number(),
            activity_label  = recode(activity,
                                     "t_shop_ttl"             = "Total shopping time",
@@ -48,6 +39,8 @@ df_lm_results_coefs_all_toplot <-
     # filter(str_sub(term, 1, 6) == "faminc" | term == "(Intercept)") %>%
     # group_by(lm_spc_number, activity) %>%
     # mutate(estimate = if_else(term != "(Intercept)", estimate + estimate[term == "(Intercept)"], estimate),
+    #        conf_low = conf_low + estimate[term == "(Intercept)"],
+    #        conf_high = conf_high + estimate[term == "(Intercept)"],
     #        conf_low_clustered = conf_low_clustered + estimate[term == "(Intercept)"],
     #        conf_high_clustered = conf_high_clustered + estimate[term == "(Intercept)"]) %>%
     # ungroup() %>%
@@ -119,5 +112,5 @@ p <- g %+% {df_lm_results_coefs_all_toplot %>%
             facet_wrap( ~ activity_label, ncol = 4, scales = "free")
 p
 
-ggsave(filename = str_c(odir_atus, "fig_individual_coefs_combined.pdf_", tfst, "_", tlst, ".pdf"),
+ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_nonshoping_combined_slides_", tfst, "_", tlst, ".pdf"),
        plot = p, width =  13, height = 6.5)
