@@ -1,49 +1,40 @@
 
-load(file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual_lm_coefs_all.Rdata"))
+message(str_c("Plotting the results from individual level regressions: time spent on various activities"))
 
-#### plot estimated coefficients for income group categorical variable for selected models ####
+if (!exists("df_lm_results_coefs_all")) load(file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual_lm_coefs_all.Rdata"))
 
+#### dataset to plot estimated coefficients for income group categorical variable for selected models ####
+
+# all estimates are relative to family with lowest income
 df_lm_results_coefs_all_toplot <-
     df_lm_results_coefs_all %>%
-    filter(parse_number(lm_spc_number) %in% c(1,4,7,8)) %>%
-    group_by(lm_spc) %>%
     mutate(activity_number = row_number(),
            activity_label  = recode(activity,
-                                    "t_shop_ttl"             = "Total shopping time",
                                     "t_shop_groceries"       = "Groceries",
                                     "t_shop_gas"             = "Gas",
                                     "t_shop_food"            = "Food",
-                                    # "t_shop_ggf"             = "Groceries, gas, food",
                                     "t_shop_other"           = "Other",
                                     "t_shop_travel"          = "Travel",
+                                    "t_shop_ttl"             = "Total shopping time",
                                     "t_ahk_leisure_tv"       = "Leisure: TV",
                                     "t_ahk_leisure_oth"      = "Leisure: Other",
                                     "t_leisure"              = "Leisure: Total",
+                                    "t_eat"                  = "Eating",
                                     "t_ahk_sleep"            = "Sleeping",
-                                    "t_work_ttl"             = "Work",
+                                    "t_personal_care"        = "Personal care",
+                                    "t_ahk_ownmdcare"        = "Own medical care",
+                                    "t_ahk_othercare"        = "Taking care of others",
                                     "t_ahk_childcare"        = "Childcare",
                                     "t_meals"                = "Preparing meal",
                                     "t_ahk_homeproduction"   = "Home production",
-                                    "t_eat"                  = "Eating",
-                                    "t_personal_care"        = "Personal care",
-                                    "t_ahk_ownmdcare"        = "Own medical care",
-                                    "t_ahk_othercare"        = "Taking care of others") %>%
-               factor(levels = c("Groceries", "Gas", "Food", "Other", "Travel",
+                                    "t_work_ttl"             = "Work") %>%
+               factor(levels = c("Groceries", "Gas", "Food", "Other", "Travel", "Total shopping time",
                                  "Leisure: TV", "Leisure: Other", "Leisure: Total", "Sleeping",
-                                 "Work", "Childcare", "Preparing meal", "Home production",
-                                 "Eating", "Personal care", "Own medical care", "Taking care of others"),
+                                 "Eating", "Personal care", "Own medical care", "Taking care of others",
+                                 "Childcare", "Preparing meal", "Home production", "Work"),
                       ordered = TRUE)) %>%
-    ungroup() %>%
     select(activity_number, activity_label, activity, lm_spc_number, lm_spc_label, lm_coefs) %>%
     unnest() %>%
-    # filter(str_sub(term, 1, 6) == "faminc" | term == "(Intercept)") %>%
-    # group_by(lm_spc_number, activity) %>%
-    # mutate(estimate = if_else(term != "(Intercept)", estimate + estimate[term == "(Intercept)"], estimate),
-    #        conf_low = conf_low + estimate[term == "(Intercept)"],
-    #        conf_high = conf_high + estimate[term == "(Intercept)"],
-    #        conf_low_clustered = conf_low_clustered + estimate[term == "(Intercept)"],
-    #        conf_high_clustered = conf_high_clustered + estimate[term == "(Intercept)"]) %>%
-    # ungroup() %>%
     filter(str_sub(term, 1, 6) == "faminc") %>%
     mutate(term = term %>%
                str_sub(11, -1) %>%
@@ -84,10 +75,10 @@ g <- ggplot() +
 
 # plot for total shopping time
 p <- g %+% {df_lm_results_coefs_all_toplot %>%
+				filter(parse_number(lm_spc_number) %in% c(1, 4, 7, 8)) %>%
                 filter(activity ==  "t_shop_ttl")} +
             scale_x_continuous(limits = c(0, 1.5), sec.axis = dup_axis()) +
             facet_grid(~lm_spc_label, switch = "y")
-
 p
 
 ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_shop_ttl_slides_", tfst, "_", tlst, ".pdf"),
@@ -95,8 +86,9 @@ ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_shop_ttl_slides_", tf
 
 # plot for shopping related activities
 p <- g %+% {df_lm_results_coefs_all_toplot %>%
-                filter(parse_number(lm_spc_number) %in% c(8)) %>%
-                filter(activity %in%  c("t_shop_groceries", "t_shop_gas", "t_shop_food", "t_shop_other", "t_shop_travel"))} +
+                filter(parse_number(lm_spc_number) == 8) %>%
+                filter(activity %in%  c("t_shop_groceries", "t_shop_gas", "t_shop_food", "t_shop_other", "t_shop_travel", "t_shop_ttl"))} +
+#           facet_wrap( ~ activity_label, ncol = 3)
             facet_wrap( ~ activity_label, ncol = 3, scales = "free")
 p
 
@@ -105,7 +97,7 @@ ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_shop_categories_slide
 
 # plot for main non-shopping related activities
 p <- g %+% {df_lm_results_coefs_all_toplot %>%
-                filter(parse_number(lm_spc_number) %in% c(8)) %>%
+                filter(parse_number(lm_spc_number) == 8) %>%
                 filter(activity %in%  c("t_ahk_leisure_tv", "t_ahk_leisure_oth", "t_leisure", "t_ahk_sleep",
                                         "t_work_ttl", "t_ahk_childcare", "t_meals", "t_ahk_homeproduction",
                                         "t_eat", "t_personal_care", "t_ahk_ownmdcare", "t_ahk_othercare"))} +

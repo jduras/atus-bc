@@ -1,8 +1,11 @@
 
-load(file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual_lm_coefs_all.Rdata"))
+message(str_c("Plotting the results from individual level regressions: time spent on various activities"))
+
+if (!exists("df_lm_results_coefs_all")) load(file = str_c(edir_atus, "atus_", tfst, "_", tlst, "_individual_lm_coefs_all.Rdata"))
 
 #### dataset to plot estimated coefficients for income group categorical variable for selected models ####
 
+# all estimates are relative to family with lowest income
 df_lm_results_coefs_all_toplot <-
     df_lm_results_coefs_all %>%
     mutate(activity_number = row_number(),
@@ -18,9 +21,6 @@ df_lm_results_coefs_all_toplot <-
                                     "t_shop_travel"          = "Travel",
                                     "t_shop_ttl"             = "Total shopping time",
                                     # "t_ahk_shop"             = "Shopping",
-                                    "t_ahk_work"             = "Work",
-                                    "t_ahk_work_search"      = "Work: Search",
-                                    "t_work_ttl"             = "Work: Total",
                                     "t_ahk_leisure_tv"       = "Leisure: TV",
                                     "t_ahk_leisure_oth"      = "Leisure: Other",
                                     "t_leisure"              = "Leisure: Total",
@@ -38,6 +38,9 @@ df_lm_results_coefs_all_toplot <-
                                     "t_home_car_maintenance" = "Home and vehicle maintenance and repair",
                                     "t_ahk_homeproduction"   = "Home production",
                                     "t_nonmarket_work_ttl"   = "Non-market Work: Total",
+                                    "t_ahk_work"             = "Work",
+                                    "t_ahk_work_search"      = "Work: Search",
+                                    "t_work_ttl"             = "Work: Total",
                                     "t_ahk_education"        = "Education",
                                     "t_ahk_civic"            = "Civic",
                                     "t_other"                = "Other activities",
@@ -45,11 +48,11 @@ df_lm_results_coefs_all_toplot <-
                factor(levels = c("Groceries", "Gas", "Food", "Groceries, gas, food",
                                  "Other", "Other: shopping", "Other: research", "Other: waiting",
                                  "Travel", "Total shopping time",
-                                 "Work", "Work: Search", "Work: Total",
                                  "Leisure: TV", "Leisure: Other", "Leisure: Total",
                                  "Eating", "Sleeping", "Personal care", "Eating, sleeping, personal care", "Eating, sleeping, personal care, leisure",
                                  "Own medical care", "Taking care of others", "Childcare", "Childcare: playing",
                                  "Preparing meal", "Housework", "Home and vehicle maintenance and repair", "Home production", "Non-market Work: Total",
+                                 "Work", "Work: Search", "Work: Total",
                                  "Education", "Civic", "Other activities", "Total time"),
                       ordered = TRUE)) %>%
     ungroup() %>%
@@ -92,6 +95,12 @@ g <- ggplot() +
               strip.text.x = element_text(face = "bold", hjust = 0))
 
 # plot for total shopping time
+g %+% {df_lm_results_coefs_all_toplot %>%
+        filter(activity %in% "t_shop_ttl")} +
+    facet_grid(lm_spc_number ~ ., switch = "y") +
+    theme(text = element_text(size = 8),
+          axis.title.x = element_text(hjust = +1))
+
 p <- g %+% {df_lm_results_coefs_all_toplot %>%
                 filter(parse_number(lm_spc_number) %in% c(1:5, 7:8)) %>%
                 filter(activity %in% "t_shop_ttl")} +
@@ -105,7 +114,8 @@ ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_shop_ttl_", tfst, "_"
 p <- g %+% {df_lm_results_coefs_all_toplot %>%
                 filter(parse_number(lm_spc_number) %in% c(1:5, 7:8)) %>%
                 filter(activity %in% c("t_shop_groceries", "t_shop_gas", "t_shop_food", "t_shop_other", "t_shop_travel"))} +
-    facet_grid(lm_spc_number ~ activity_label, switch = "y")
+#    facet_grid(lm_spc_number ~ activity_label, switch = "y")
+    facet_grid(lm_spc_number ~ activity_label, switch = "y", scales = "free_x")
 p
 ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_shop_all_", tfst, "_", tlst, ".pdf"), plot = p, width =  9, height = 9)
 
@@ -113,7 +123,8 @@ ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_shop_all_", tfst, "_"
 p <- g %+% {df_lm_results_coefs_all_toplot %>%
                 filter(parse_number(lm_spc_number) %in% c(1:5, 7:8)) %>%
                 filter(activity %in% c("t_ahk_leisure_tv", "t_ahk_leisure_oth", "t_leisure", "t_ahk_sleep"))} +
-    facet_grid(lm_spc_number ~ activity_label, switch = "y")
+#    facet_grid(lm_spc_number ~ activity_label, switch = "y")
+    facet_grid(lm_spc_number ~ activity_label, switch = "y", scales = "free_x")
 p
 ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_leisure_", tfst, "_", tlst, ".pdf"), plot = p, width =  7, height = 9)
 
@@ -121,7 +132,8 @@ ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_leisure_", tfst, "_",
 p <- g %+% {df_lm_results_coefs_all_toplot %>%
                 filter(parse_number(lm_spc_number) %in% c(1:5, 7:8)) %>%
                 filter(activity %in% c("t_work_ttl", "t_ahk_childcare", "t_meals", "t_ahk_homeproduction"))} +
-    facet_grid(lm_spc_number ~ activity_label, switch = "y")
+#    facet_grid(lm_spc_number ~ activity_label, switch = "y")
+    facet_grid(lm_spc_number ~ activity_label, switch = "y", scales = "free_x")
 p
 ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_work_", tfst, "_", tlst, ".pdf"), plot = p, width =  7, height = 9)
 
@@ -129,7 +141,8 @@ ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_work_", tfst, "_", tl
 p <- g %+% {df_lm_results_coefs_all_toplot %>%
                 filter(parse_number(lm_spc_number) %in% c(1:5, 7:8)) %>%
                 filter(activity %in% c("t_eat", "t_personal_care", "t_ahk_ownmdcare", "t_ahk_othercare"))} +
-    facet_grid(lm_spc_number ~ activity_label, switch = "y")
+    #    facet_grid(lm_spc_number ~ activity_label, switch = "y")
+    facet_grid(lm_spc_number ~ activity_label, switch = "y", scales = "free_x")
 p
 ggsave(filename = str_c(odir_atus, "fig_individual_coefs_t_care_", tfst, "_", tlst, ".pdf"), plot = p, width =  7, height = 9)
 
